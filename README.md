@@ -1,2 +1,2 @@
-# signal-simple
+# signal-ts
 a signal.ts lib
