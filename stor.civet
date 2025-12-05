@@ -1,0 +1,164 @@
+interface Ref<T>
+    _value: any
+    actions: ((newVal: T, oldVal: T) => T?)[]
+    bind: (action: (newVal: T, oldVal: T) => T?) => void
+    get value(): T
+    set value(newVal: T)
+    get(): T
+    set(newVal: ((oldVal: T) => T) | T): void
+
+export function ref<T>(value: T): Ref<T>
+    {}
+        _value: value
+        actions: [] as ((newVal: T, oldVal: T) => T?)[]
+        get value(): T
+            @_value
+
+        set value(newVal)
+            old .= @_value
+            @_value = newVal
+            action(newVal, old) for action of @actions
+
+        bind(action: ((newVal: T, oldVal: T) => T?)): void
+            @actions.push(action)
+
+        get(): any
+            @_value
+
+        set(newVal: ((oldVal: T) => T) | T): void
+            old .= @_value
+            if newVal instanceof Function
+                newVal = newVal old
+            @_value = newVal
+            action(newVal, old) for action of @actions
+
+type LiterialAction = (value: any, old: any, key: string) => void
+
+export class StoreObject
+    object: Record<string, any>
+    handlers: Record<string, LiterialAction[]> = {}
+
+    constructor(object: Record<string, any>)
+        @object = object
+
+    bind(key: string, action: LiterialAction)
+        @handlers[key] ??= []
+        @handlers[key].push action
+    
+    get(key: string): any
+        @object[key]
+    
+    set(key: string, value: any): void
+        old .= @object[key]
+        @object[key] = value
+        @handlers[key] ??= []
+        for action of @handlers[key]
+            action value, old, key
+
+    keys(): string[]
+        Object.keys @object
+
+    values(): any[]
+        Object.values @object
+    
+    has(key: string): boolean
+        key in @object
+
+type ArrayHandler
+    push?(item: any, idx: number): void
+    set?(idx: number, newVal: any, oldVal: any): void
+    delete?(oldVal: any, idx: number): void
+    rotate?(curIdx: number, preIdxIdx: number, item: any): void
+
+export class StoreArray<T>
+    list: T?[]
+    binds: ArrayHandler[] = []
+
+    constructor(list: T[])
+        @list = list
+    
+    bind(handlers: ArrayHandler): void
+        @binds.push handlers
+
+    set(index: number, value: T): void
+        old .= @list[index]
+        @list[index] = value
+        for bind of @binds
+            bind.set?(index, value, old)
+
+    get(index: number): T?
+        @list[index]
+    
+    push(value: any): void
+        @list.push(value)
+        idx .= @list# - 1
+        for bind of @binds
+            bind.push?(value, idx)
+
+    del(index: number): T?
+        deleted: T? .= @list.splice(index, 1)[0]
+        return = deleted
+        for bind of @binds
+            bind.delete?(deleted, index)
+    
+    reIndex(oldIdx: number, newIdx: number): boolean?
+        return if oldIdx === newIdx
+               || @list# <= oldIdx < 0
+               || @list# <= newIdx < 0
+        return = true
+
+        let middle, head, tail
+        item .= @list[oldIdx]
+
+        if oldIdx < newIdx
+            middle = @list[oldIdx+1..newIdx+1]
+            head = @list[..oldIdx]
+            tail = @list[newIdx+1..]
+            @list = head ++ middle ++ [item] ++ tail
+        else
+            middle = @list[newIdx..oldIdx]
+            head = @list[..newIdx]
+            tail = @list[oldIdx+1..]
+            @list = head ++ [item] ++ middle ++ tail
+
+        for bind of @binds
+            bind.rotate? newIdx, oldIdx, item
+
+        for item, idx of middle
+            cur .= oldIdx < newIdx ? oldIdx + idx : newIdx + idx + 1
+            pre .= oldIdx < newIdx ? cur - 1 : cur + 1
+            for bind of @binds
+                bind.rotate? cur, pre, item
+
+    rotate(n: number): T?[]
+        len .= @list#
+        if n < 0
+            n = n %% len
+        return = @list = @list[-n..] ++ @list[..len-n]
+        for item, idx of @list
+            oldIdx .= (idx - n) %% len
+            for bind of @binds
+                bind.rotate? idx, oldIdx, item
+    reverse()
+        return = @list.reverse()
+        len .= @list#
+        for item, idx of @list
+            oldIdx .= len - 1 - idx
+            for bind of @binds
+                bind.rotate? idx, oldIdx, item
+    swap(i0: number, i1: number)
+        return if @list# <= i0 < 0
+               || @list# <= i1 < 0
+        [@list[i0], @list[i1]] = [@list[i1], @list[i0]]
+        for bind of @binds
+            bind.rotate? i0, i1, @list[i0]
+            bind.rotate? i1, i0, @list[i1]
+
+export function createStore<T>(anything: T | T[] | Record<string, any>): Ref<T> | StoreArray<T> | StoreObject
+    switch anything
+        instanceof Array
+            new StoreArray anything
+        instanceof Object
+            new StoreObject anything
+        else
+            ref anything
