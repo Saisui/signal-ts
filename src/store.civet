@@ -139,6 +139,7 @@ export class StoreArray<T>
             oldIdx .= (idx - n) %% len
             for bind of @binds
                 bind.rotate? idx, oldIdx, item
+
     reverse()
         return = @list.reverse()
         len .= @list#
@@ -146,6 +147,7 @@ export class StoreArray<T>
             oldIdx .= len - 1 - idx
             for bind of @binds
                 bind.rotate? idx, oldIdx, item
+
     swap(i0: number, i1: number)
         return if @list# <= i0 < 0
                || @list# <= i1 < 0
