@@ -38,7 +38,7 @@ class Ref<T=any> {
 }
 
 function createRef<T=any>(val: T, opt = {}): Ref<T> {
-    return new Ref<T>(val)
+    return new Ref<T>(val, opt)
 }
 
 class Store {
@@ -65,6 +65,12 @@ type PushHandler<T=any> = (newRef: Ref<T>, ni: number) => void
 type RotateHandler = (roNum: number) => void
 type SwapHandler = (ai: number, bi: number) => void
 type DeleteHandler = (i: number) => void
+
+type ListHandler<T=any> = 
+    PushHandler<T>
+    | RotateHandler
+    | SwapHandler
+    | DeleteHandler
 class List<T=any> {
     list: Ref<T>[]
     handlers: {
@@ -80,18 +86,11 @@ class List<T=any> {
             rotate: [],
             swap: [],
             delete: [],
-        } 
+        }
     }
     get length() { return this.list.length }
-    bind(funcs: {
-        push?: PushHandler<T>,
-        rotate?: RotateHandler,
-        swap?: SwapHandler,
-        delete?: DeleteHandler,
-    } = {}): void {
-        for(const meth in funcs) {
-            this.handlers[meth].push(funcs[meth])
-        }
+    bind<K extends keyof typeof this.handlers, F extends (typeof this.handlers)[K][number]>(name: K, func: F): void {
+        this.handlers[name].push(func as any)
     }
     at(i: number) {
         return this.list[i]
